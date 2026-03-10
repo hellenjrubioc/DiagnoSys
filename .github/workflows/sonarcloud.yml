@@ -11,21 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Clonar el repo
       - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v3
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
+      # 2. Ejecutar análisis SonarCloud
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v2
-        with:
-          projectKey: "hellenjrubioc-diagnosys"     
-          organization: "hellenjrubioc"                 
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
