@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import styles from "./form-base.module.css";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface Item {
     id: number;
@@ -48,6 +49,9 @@ const FormBase: React.FC<FormBaseProps> = ({ formId }) => {
     const [newItemName, setNewItemName] = useState("");
     const [currentCatId, setCurrentCatId] = useState<number | null>(null);
     const [errorModal, setErrorModal] = useState<string | null>(null);
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const organizationId = searchParams.get("organizationId");
 
     // Load real data from the API
     useEffect(() => {
@@ -230,7 +234,11 @@ const FormBase: React.FC<FormBaseProps> = ({ formId }) => {
         });
 
         try {
-            const res = await fetch(`/api/forms/${formId}/complete`, {
+            const completeEndpoint = organizationId
+                ? `/api/forms/${formId}/complete?organizationId=${organizationId}`
+                : `/api/forms/${formId}/complete`;
+
+            const res = await fetch(completeEndpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -368,9 +376,14 @@ const FormBase: React.FC<FormBaseProps> = ({ formId }) => {
                 </div>
             ))}
 
-            <button className={styles.submitButton} onClick={handleSubmit}>
-                Submit evaluation
-            </button>
+            <div className={styles.buttonGroup}>
+                <button className={styles.submitButton} onClick={handleSubmit}>
+                    Submit evaluation
+                </button> 
+                <button className={styles.backButton} onClick={() => router.back()}>
+                    Back
+                </button>
+            </div>
 
             {/* Modal for adding items */}
             {showModal && (

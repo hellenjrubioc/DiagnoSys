@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import UserCard from "@/app/components/organisms/userCard";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   HomeIcon,
@@ -19,7 +19,12 @@ import {
 export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname(); //Detecta la ruta actual
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
+  const selectedOrganizationId = searchParams.get("organizationId");
+  const selectedOrganizationName = searchParams.get("organizationName");
+  const isConsultantDiagnosticsMode =
+    pathname.startsWith("/dashboard/consultant") && Boolean(selectedOrganizationId);
 
   // Definir los enlaces comunes para todos los roles
   const links = [
@@ -37,12 +42,9 @@ export default function Sidebar() {
       { href: "/dashboard/admin/users", label: "Users", icon: <PersonIcon /> },
     ],
     consultant: [
-      { href: "/dashboard/consultant/zoom-in", label: "Zoom-in", icon: <ZoomInIcon /> },
-      { href: "/dashboard/consultant/zoom-out", label: "Zoom-out", icon: <ZoomOutIcon /> },
-      { href: "/dashboard/consultant/categorization", label: "Categorization", icon: <LayoutIcon /> },
-      { href: "/dashboard/consultant/prioritization", label: "Prioritization", icon: <ListBulletIcon /> },
-      //{ href: "/dashboard/consultant/organizations", label: "Organizations", icon: <LayoutIcon /> },
-      { href: "/dashboard/consultant/reports", label: "Reports", icon: <ZoomOutIcon /> },
+      { href: "/dashboard", label: "Home", icon: <HomeIcon /> },
+      { href: "/dashboard/consultant/organizations", label: "Organizations", icon: <LayoutIcon /> },
+      { href: "/dashboard/consultant/reports", label: "Report", icon: <ZoomOutIcon /> },
     ],
     organization: [
       { href: "/dashboard/organization/zoom-in", label: "Zoom-in", icon: <ZoomInIcon /> },
@@ -59,7 +61,7 @@ export default function Sidebar() {
       case "admin":
         return [...links, ...roleBasedLinks.admin];
       case "consultant":
-        return [...links, ...roleBasedLinks.consultant];
+        return [...roleBasedLinks.consultant];
       case "organization":
         return [...links, ...roleBasedLinks.organization];
       default:
@@ -67,11 +69,47 @@ export default function Sidebar() {
     }
   };
 
-  const userRole =
+  const rawUserRole =
     typeof session?.user?.role === "string"
       ? session.user.role
       : session?.user?.role?.name || session?.user?.role?.displayName || undefined;
+  const userRole = rawUserRole?.toLowerCase();
   const userLinks = getLinksByRole(userRole);
+
+  const diagnosticsLinks = selectedOrganizationId
+    ? [
+        {
+          href: `/dashboard/consultant/zoom-in?organizationId=${selectedOrganizationId}&organizationName=${encodeURIComponent(selectedOrganizationName ?? "")}`,
+          label: "Zoom-in",
+          icon: <ZoomInIcon />,
+        },
+        {
+          href: `/dashboard/consultant/zoom-out?organizationId=${selectedOrganizationId}&organizationName=${encodeURIComponent(selectedOrganizationName ?? "")}`,
+          label: "Zoom-out",
+          icon: <ZoomOutIcon />,
+        },
+        {
+          href: `/dashboard/consultant/categorization?organizationId=${selectedOrganizationId}&organizationName=${encodeURIComponent(selectedOrganizationName ?? "")}`,
+          label: "Categorization",
+          icon: <LayoutIcon />,
+        },
+        {
+          href: `/dashboard/consultant/prioritization?organizationId=${selectedOrganizationId}&organizationName=${encodeURIComponent(selectedOrganizationName ?? "")}`,
+          label: "Prioritization",
+          icon: <ListBulletIcon />,
+        },
+        {
+          href: `/dashboard/consultant/reports?organizationId=${selectedOrganizationId}&organizationName=${encodeURIComponent(selectedOrganizationName ?? "")}`,
+          label: "Report",
+          icon: <ZoomOutIcon />,
+        },
+      ]
+    : [];
+
+  const displayedLinks =
+    userRole === "consultant" && isConsultantDiagnosticsMode
+      ? diagnosticsLinks
+      : userLinks;
 
   return (
     <>
@@ -90,8 +128,24 @@ export default function Sidebar() {
         <div className="absolute inset-0 green"></div>
         <h2 className="text-2xl font-bold text-primary mb-6">Menu</h2>
 
+        {userRole === "consultant" && isConsultantDiagnosticsMode ? (
+          <div className="mb-4 p-3 rounded-md bg-white/60 border border-white/70">
+            <p className="text-xs uppercase tracking-wide text-gray-700">Selected Organization</p>
+            <p className="font-semibold text-primary truncate">
+              {selectedOrganizationName || `Organization #${selectedOrganizationId}`}
+            </p>
+            <Link
+              href="/dashboard/consultant/organizations"
+              className="mt-2 inline-block text-sm text-blue-700 hover:underline"
+              onClick={() => setIsOpen(false)}
+            >
+              Back to Organizations
+            </Link>
+          </div>
+        ) : null}
+
         <nav className="flex flex-col gap-4 flex-1 overflow-y-auto">
-          {userLinks.map((link) => (
+          {displayedLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}

@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import styles from "./preview-forms.module.css";
 import { FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Category {
     id: string;
@@ -44,11 +45,21 @@ interface PreviewFormsProps {
     moduleId?: number;
 }
 
+// 1. Definimos el orden de las rutas
+const STEPS = ["zoom-in", "zoom-out", "categorization"];
+
 export default function PreviewForms({ moduleName, moduleId }: PreviewFormsProps) {
     const [forms, setForms] = useState<FormCardProps[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+
+    const contextParams = new URLSearchParams(searchParams.toString());
+    const contextQuery = contextParams.toString();
+    const withContext = (path: string) =>
+        contextQuery ? `${path}${path.includes("?") ? "&" : "?"}${contextQuery}` : path;
 
     useEffect(() => {
         const fetchForms = async () => {
@@ -113,7 +124,7 @@ export default function PreviewForms({ moduleName, moduleId }: PreviewFormsProps
     const handleStartEvaluation = (formId: string) => {
         // Determinar la ruta basándose en el módulo y el contexto actual
         const currentPath = window.location.pathname;
-        
+
         if (currentPath.includes('/admin/')) {
             // Para admin, redirigir al preview del formulario base
             if (moduleName === 'Zoom In') {
@@ -126,11 +137,11 @@ export default function PreviewForms({ moduleName, moduleId }: PreviewFormsProps
         } else if (currentPath.includes('/consultant/')) {
             // Para consultant, usar las rutas de consultor
             if (moduleName === 'Zoom In') {
-                router.push(`/dashboard/consultant/zoom-in/forms/${formId}`);
+                router.push(withContext(`/dashboard/consultant/zoom-in/forms/${formId}`));
             } else if (moduleName === 'Zoom Out') {
-                router.push(`/dashboard/consultant/zoom-out/forms/${formId}`);
+                router.push(withContext(`/dashboard/consultant/zoom-out/forms/${formId}`));
             } else {
-                router.push(`/dashboard/consultant/forms/${formId}`);
+                router.push(withContext(`/dashboard/consultant/forms/${formId}`));
             }
         } else {
             // Para organization, usar las rutas de organización
@@ -143,6 +154,27 @@ export default function PreviewForms({ moduleName, moduleId }: PreviewFormsProps
             }
         }
     };
+
+    const handleNext = () => {
+        // 2. Extraemos el prefijo (ej: /dashboard/organization) y la página actual
+        const pathParts = pathname.split("/");
+        const currentPage = pathParts.pop(); // "zoom-in"
+        const prefix = pathParts.join("/"); // "/dashboard/organization"
+
+        // 3. Buscamos el índice de la página actual en nuestro array de pasos
+        const currentIndex = STEPS.indexOf(currentPage || "");
+
+        // 4. Lógica de redirección
+        if (currentIndex !== -1 && currentIndex < STEPS.length - 1) {
+            // Si hay un siguiente paso en la lista, vamos allá
+            const nextPage = STEPS[currentIndex + 1];
+            router.push(withContext(`${prefix}/${nextPage}`));
+        } else {
+            // Si es el último paso (categorization) o no está en la lista, vuelve al inicio
+            router.push(withContext(`/dashboard/consultant/diagnostics`));
+        }
+    };
+
 
     if (loading) {
         return (
@@ -213,6 +245,22 @@ export default function PreviewForms({ moduleName, moduleId }: PreviewFormsProps
                         </button>
                     </div>
                 ))}
+            </div>
+            <div className={styles.navigationButtons}>
+                <Button
+                    variant="default"
+                    size="lg"
+                    onClick={handleNext}
+                >
+                    Next
+                </Button>
+                <Button
+                    variant="secondary"
+                    size="lg"
+                    onClick={() => router.back()}
+                >
+                    Back
+                </Button>
             </div>
         </div>
     );

@@ -62,14 +62,14 @@ export default function ReportsPage() {
             }
 
             const data: ApiResponse = await response.json();
-            console.log('🎯 Consultant Frontend received data:', data);
-            console.log('🎯 ZoomIn forms:', data.zoomInForms);
-            console.log('🎯 ZoomOut forms:', data.zoomOutForms);
+            console.log('Consultant Frontend received data:', data);
+            console.log('ZoomIn forms:', data.zoomInForms);
+            console.log('ZoomOut forms:', data.zoomOutForms);
             
             setZoomInForms(data.zoomInForms || []);
             setZoomOutForms(data.zoomOutForms || []);
         } catch (error) {
-            console.error('🚨 Error fetching personalized forms:', error);
+            console.error('Error fetching personalized forms:', error);
         } finally {
             setLoading(false);
         }

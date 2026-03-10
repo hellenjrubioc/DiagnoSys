@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { Suspense } from "react";
 import {
   DragDropContext,
   Droppable,
   Draggable,
   DropResult,
 } from "@hello-pangea/dnd";
+import { useSearchParams } from "next/navigation";
 import styles from "@/app/components/forms/form-base.module.css";
 
 interface Note {
@@ -28,9 +30,27 @@ interface FormResponse {
   categories: { id: number; name: string }[];
 }
 
-export default function PriorityQuadrants() {
+interface SavedNote {
+  name: string;
+}
+
+interface SavedPrioritizationResponse {
+  hasData: boolean;
+  highPriority: SavedNote[];
+  mediumPriority: SavedNote[];
+  lowPriority: SavedNote[];
+  mediumPriority2: SavedNote[];
+}
+
+function PriorityQuadrantsContent() {
+  const searchParams = useSearchParams();
+  const organizationId = searchParams.get("organizationId");
+  const withOrganizationContext = (path: string) =>
+    organizationId ? `${path}?organizationId=${organizationId}` : path;
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
   const [quadrants, setQuadrants] = useState<{
     q1: Note[];
     q2: Note[];
@@ -48,10 +68,17 @@ export default function PriorityQuadrants() {
   useEffect(() => {
     const fetchForms = async () => {
       try {
-        const res = await fetch("/api/modules/2/forms");
-        if (!res.ok) throw new Error("Failed to fetch forms");
+        const [formsRes, savedRes] = await Promise.all([
+          fetch("/api/modules/2/forms"),
+          fetch(withOrganizationContext("/api/modules/priorization/save")),
+        ]);
 
-        const data: { forms: FormResponse[] } = await res.json();
+        if (!formsRes.ok) throw new Error("Failed to fetch forms");
+
+        const data: { forms: FormResponse[] } = await formsRes.json();
+        const savedData: SavedPrioritizationResponse | null = savedRes.ok
+          ? await savedRes.json()
+          : null;
 
         // Colores solo para mostrar (no se guardan en BD)
         const colorPairs: [string, string][] = [
@@ -75,7 +102,57 @@ export default function PriorityQuadrants() {
           };
         });
 
-        setCategories(mappedCategories);
+        if (savedData?.hasData) {
+          const categoriesCopy = mappedCategories.map((category) => ({
+            ...category,
+            notes: [...category.notes],
+          }));
+
+          const notesByName = new Map<string, Note[]>();
+          categoriesCopy.forEach((category) => {
+            category.notes.forEach((note) => {
+              const current = notesByName.get(note.name) ?? [];
+              notesByName.set(note.name, [...current, note]);
+            });
+          });
+
+          const takeNotes = (items: SavedNote[]) =>
+            items
+              .map((item) => {
+                const candidates = notesByName.get(item.name);
+                if (!candidates?.length) return null;
+                const [first, ...rest] = candidates;
+                notesByName.set(item.name, rest);
+                return first;
+              })
+              .filter((note): note is Note => Boolean(note));
+
+          const restoredQuadrants = {
+            q1: takeNotes(savedData.highPriority),
+            q2: takeNotes(savedData.mediumPriority),
+            q3: takeNotes(savedData.lowPriority),
+            q4: takeNotes(savedData.mediumPriority2),
+          };
+
+          const usedIds = new Set(
+            [
+              ...restoredQuadrants.q1,
+              ...restoredQuadrants.q2,
+              ...restoredQuadrants.q3,
+              ...restoredQuadrants.q4,
+            ].map((note) => note.id)
+          );
+
+          const remainingCategories = categoriesCopy.map((category) => ({
+            ...category,
+            notes: category.notes.filter((note) => !usedIds.has(note.id)),
+          }));
+
+          setQuadrants(restoredQuadrants);
+          setCategories(remainingCategories);
+        } else {
+          setCategories(mappedCategories);
+        }
       } catch (err) {
         console.error("Error fetching forms", err);
       } finally {
@@ -135,29 +212,72 @@ export default function PriorityQuadrants() {
   const allAssigned = allNotes.length === 0 && allDestNotes.length > 0;
 
   const handleSave = async () => {
-    // Solo enviamos nombre e id (sin color)
     const stripColor = (arr: Note[]) => arr.map(({ id, name }) => ({ id, name }));
-
-    const payload = {
+    const buildPayload = (forceUpdate: boolean) => ({
       highPriority: stripColor(quadrants.q1),
       mediumPriority: stripColor(quadrants.q2),
       lowPriority: stripColor(quadrants.q3),
       mediumPriority2: stripColor(quadrants.q4),
-    };
+      forceUpdate,
+    });
 
-    console.log("Saved data:", payload);
+    const saveRequest = async (forceUpdate: boolean) =>
+      fetch(withOrganizationContext("/api/modules/priorization/save"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildPayload(forceUpdate)),
+      });
 
     try {
-      const res = await fetch("/api/modules/priorization/save", {
+      let res = await saveRequest(false);
+
+      if (res.status === 409) {
+        const responseBody = await res.json();
+        if (responseBody?.requiresConfirmation) {
+          setShowOverwriteModal(true);
+          return;
+        }
+      }
+
+      if (!res.ok) throw new Error("Error saving data");
+
+      const responseBody = await res.json();
+      setErrorModal(
+        responseBody?.updated
+          ? "Today's prioritization was updated successfully "
+          : "Data saved successfully "
+      );
+    } catch (err) {
+      console.error(err);
+      setErrorModal("Error saving data ");
+    }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setShowOverwriteModal(false);
+
+    try {
+      const stripColor = (arr: Note[]) => arr.map(({ id, name }) => ({ id, name }));
+      const payload = {
+        highPriority: stripColor(quadrants.q1),
+        mediumPriority: stripColor(quadrants.q2),
+        lowPriority: stripColor(quadrants.q3),
+        mediumPriority2: stripColor(quadrants.q4),
+        forceUpdate: true,
+      };
+
+      const res = await fetch(withOrganizationContext("/api/modules/priorization/save"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Error saving data");
-      setErrorModal("Data saved successfully ✅");
+
+      if (!res.ok) throw new Error("Error updating data");
+
+      setErrorModal("Today's prioritization was updated successfully ✅");
     } catch (err) {
       console.error(err);
-      setErrorModal("Error saving data ❌");
+      setErrorModal("Error updating data ❌");
     }
   };
 
@@ -299,6 +419,38 @@ export default function PriorityQuadrants() {
           </div>
         </div>
       )}
+
+      {showOverwriteModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <p>
+              You already saved prioritization today. Do you want to update today's data?
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                className={styles.cancelButton}
+                onClick={() => setShowOverwriteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.confirmButton}
+                onClick={handleConfirmOverwrite}
+              >
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function PriorityQuadrants() {
+  return (
+    <Suspense fallback={<p className="text-center mt-10 text-gray-500">Loading data...</p>}>
+      <PriorityQuadrantsContent />
+    </Suspense>
   );
 }

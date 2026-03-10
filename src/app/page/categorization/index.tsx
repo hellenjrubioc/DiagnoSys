@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { Suspense } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { useSearchParams } from "next/navigation";
 import styles from "@/app/components/forms/form-base.module.css";
 
 interface Note {
@@ -26,9 +28,26 @@ interface FormResponse {
   }[];
 }
 
-export default function ZoomOutCategorization() {
+interface SavedNote {
+  name: string;
+}
+
+interface SavedCategorizationResponse {
+  hasData: boolean;
+  opportunities: SavedNote[];
+  needs: SavedNote[];
+  problems: SavedNote[];
+}
+
+function ZoomOutCategorizationContent() {
+  const searchParams = useSearchParams();
+  const organizationId = searchParams.get("organizationId");
+  const withOrganizationContext = (path: string) =>
+    organizationId ? `${path}?organizationId=${organizationId}` : path;
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
   const [destinations, setDestinations] = useState<{
     opportunities: Note[];
     needs: Note[];
@@ -44,10 +63,17 @@ export default function ZoomOutCategorization() {
   useEffect(() => {
     const fetchForms = async () => {
       try {
-        const res = await fetch("/api/modules/2/forms");
-        if (!res.ok) throw new Error("Failed to fetch forms");
+        const [formsRes, savedRes] = await Promise.all([
+          fetch("/api/modules/2/forms"),
+          fetch(withOrganizationContext("/api/modules/2/save")),
+        ]);
 
-        const data: { forms: FormResponse[] } = await res.json();
+        if (!formsRes.ok) throw new Error("Failed to fetch forms");
+
+        const data: { forms: FormResponse[] } = await formsRes.json();
+        const savedData: SavedCategorizationResponse | null = savedRes.ok
+          ? await savedRes.json()
+          : null;
 
         console.log("API response:", data);
 
@@ -72,7 +98,55 @@ export default function ZoomOutCategorization() {
           };
         });
 
-        setCategories(mappedCategories);
+        if (savedData?.hasData) {
+          const categoriesCopy = mappedCategories.map((category) => ({
+            ...category,
+            notes: [...category.notes],
+          }));
+
+          const notesByName = new Map<string, Note[]>();
+          categoriesCopy.forEach((category) => {
+            category.notes.forEach((note) => {
+              const current = notesByName.get(note.name) ?? [];
+              notesByName.set(note.name, [...current, note]);
+            });
+          });
+
+          const takeNotes = (items: SavedNote[]) =>
+            items
+              .map((item) => {
+                const candidates = notesByName.get(item.name);
+                if (!candidates?.length) return null;
+                const [first, ...rest] = candidates;
+                notesByName.set(item.name, rest);
+                return first;
+              })
+              .filter((note): note is Note => Boolean(note));
+
+          const restoredDestinations = {
+            opportunities: takeNotes(savedData.opportunities),
+            needs: takeNotes(savedData.needs),
+            problems: takeNotes(savedData.problems),
+          };
+
+          const usedIds = new Set(
+            [
+              ...restoredDestinations.opportunities,
+              ...restoredDestinations.needs,
+              ...restoredDestinations.problems,
+            ].map((note) => note.id)
+          );
+
+          const remainingCategories = categoriesCopy.map((category) => ({
+            ...category,
+            notes: category.notes.filter((note) => !usedIds.has(note.id)),
+          }));
+
+          setDestinations(restoredDestinations);
+          setCategories(remainingCategories);
+        } else {
+          setCategories(mappedCategories);
+        }
       } catch (err) {
         console.error("Error fetching forms", err);
       } finally {
@@ -145,21 +219,65 @@ export default function ZoomOutCategorization() {
 
   // Función de guardar
   const handleSave = async () => {
-    const payload = destinations;
-    console.log("Saved data:", payload);
+    const saveRequest = async (forceUpdate: boolean) => {
+      const payload = {
+        ...destinations,
+        forceUpdate,
+      };
+
+      return fetch(withOrganizationContext("/api/modules/2/save"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    };
 
     try {
-      const res = await fetch("/api/modules/2/save", {
+      let res = await saveRequest(false);
+
+      if (res.status === 409) {
+        const responseBody = await res.json();
+        if (responseBody?.requiresConfirmation) {
+          setShowOverwriteModal(true);
+          return;
+        }
+      }
+
+      if (!res.ok) throw new Error("Error saving data");
+
+      const responseBody = await res.json();
+      setErrorModal(
+        responseBody?.updated
+          ? "Today's categorization was updated successfully ✅"
+          : "Data saved successfully ✅"
+      );
+    } catch (err) {
+      console.error(err);
+      setErrorModal("Error saving data ❌");
+    }
+  };
+
+  const handleConfirmOverwrite = async () => {
+    setShowOverwriteModal(false);
+
+    try {
+      const payload = {
+        ...destinations,
+        forceUpdate: true,
+      };
+
+      const res = await fetch(withOrganizationContext("/api/modules/2/save"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Error saving data");
-      setErrorModal("Data saved successfully ✅");
+      if (!res.ok) throw new Error("Error updating data");
+
+      setErrorModal("Today's categorization was updated successfully ✅");
     } catch (err) {
       console.error(err);
-      setErrorModal("Error saving data ❌");
+      setErrorModal("Error updating data ❌");
     }
   };
 
@@ -263,6 +381,38 @@ export default function ZoomOutCategorization() {
           </div>
         </div>
       )}
+
+      {showOverwriteModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <p>
+              You already saved categorization today. Do you want to update today's data?
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                className={styles.cancelButton}
+                onClick={() => setShowOverwriteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className={styles.confirmButton}
+                onClick={handleConfirmOverwrite}
+              >
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function ZoomOutCategorization() {
+  return (
+    <Suspense fallback={<p className="text-center mt-10 text-gray-500">Loading data...</p>}>
+      <ZoomOutCategorizationContent />
+    </Suspense>
   );
 }
