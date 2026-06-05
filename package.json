@@ -7,6 +7,7 @@
     "dev": "next dev --turbopack",
     "prisma:generate": "prisma generate",
     "build": "prisma generate && next build",
+    "test:e2e": "npx playwright test",
     "migrate:deploy": "prisma migrate deploy",
     "start": "next start",
     "lint": "eslint",
@@ -50,6 +51,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.60.0",
     "@prisma/config": "^6.17.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcrypt": "^6.0.0",
