@@ -24,9 +24,21 @@ jobs:
         run: npx playwright install --with-deps
 
       - name: Build Application (Prisma + Next.js)
-        run: npm run build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+        run: |
+          npx prisma generate
+          npm run build
 
       - name: Run Playwright tests
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
         run: npm run test:e2e
 
       - uses: actions/upload-artifact@v4

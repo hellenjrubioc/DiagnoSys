@@ -1,9 +1,16 @@
 import { Resend } from "resend";
 import ResetPasswordEmail from "@/emails/ResetPasswordEmail";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient() {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+        throw new Error("RESEND_API_KEY must be defined");
+    }
+    return new Resend(apiKey);
+}
 
 export async function sendResetEmail(to: string, name: string, link: string) {
+    const resend = getResendClient();
     // Nos aseguramos que el "to" esté en formato válido
     // const formattedTo = `${name} <${to}>`;
     try {
