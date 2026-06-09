@@ -1,3 +1,7 @@
+
+
+//Archivo alterno frente a la rama principal de Fredy
+
 import { Resend } from "resend";
 import ResetPasswordEmail from "@/emails/ResetPasswordEmail";
 
@@ -33,3 +37,5 @@ export async function sendResetEmail(to: string, name: string, link: string) {
         throw error;
     }
 }
+
+
