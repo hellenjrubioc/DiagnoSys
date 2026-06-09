@@ -23,7 +23,7 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      # PASO CLAVE: Forzamos la creación de un archivo .env exclusivo dentro de GitHub
+      #Nota vacía
       - name: Create temporary .env for build
         run: |
           echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" >> .env
@@ -58,3 +58,4 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
+
