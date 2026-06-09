@@ -23,7 +23,6 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
 
-      #Nota vacía
       - name: Create temporary .env for build
         run: |
           echo "DATABASE_URL=\"${{ secrets.DATABASE_URL }}\"" >> .env
@@ -50,7 +49,8 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-        run: npm run test:e2e
+        # Se añade --reporter=list para que pinte las líneas descriptivas directo en la consola de GitHub
+        run: npm run test:e2e -- --reporter=list
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
@@ -58,4 +58,3 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
-
