@@ -8,6 +8,10 @@ jobs:
   test:
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    # Necesitamos darle permisos al token de GitHub para que pueda escribir/crear la rama de la página web
+    permissions:
+      contents: write
+  
     steps:
       - uses: actions/checkout@v4
 
@@ -49,13 +53,12 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-        # Quitamos la bandera --reporter=list de aquí para dejar que el config.ts maneje los múltiples reportes
         run: npm run test:e2e
 
-      - name: Upload Playwright Report Artifact
-        uses: actions/upload-artifact@v4
-        if: always() # Obliga a GitHub a empaquetar lo que encuentre, pase lo que pase
+      # NUEVO PASO: Publica automáticamente el reporte HTML en GitHub Pages
+      - name: Deploy Report to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        if: always() # Queremos que publique el reporte tanto si pasan los tests como si fallan
         with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./playwright-report
