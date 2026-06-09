@@ -24,9 +24,10 @@ export default defineConfig({
   
   /* Reporter to use. Modificado para soportar múltiples salidas en CI */
 /* Reporter to use. */
+/* Reporter to use. */
   reporter: process.env.CI
       ? [
-          ['html', { open: 'never' }], // <-- Forzamos a que cree el HTML en CI sin intentar abrir una ventana en el servidor
+          ['html', { outputFolder: 'playwright-report', open: 'never' }],
           ['github']
         ]
       : 'html',
