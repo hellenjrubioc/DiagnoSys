@@ -49,11 +49,12 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-        # Se añade --reporter=list para que pinte las líneas descriptivas directo en la consola de GitHub
-        run: npm run test:e2e -- --reporter=list
+        # Quitamos la bandera --reporter=list de aquí para dejar que el config.ts maneje los múltiples reportes
+        run: npm run test:e2e
 
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
+      - name: Upload Playwright Report Artifact
+        uses: actions/upload-artifact@v4
+        if: always() # Obliga a GitHub a empaquetar lo que encuentre, pase lo que pase
         with:
           name: playwright-report
           path: playwright-report/
