@@ -23,12 +23,12 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   
   /* Reporter to use. Modificado para soportar múltiples salidas en CI */
-  reporter: process.env.CI
-    ? [
-        ['html'], // Mantiene el reporte descargable tradicional
-        ['playwright-github-actions-reporter'] // Genera la tabla de resumen directo en GitHub Actions
-      ]
-    : 'html', // En local sigue abriendo el HTML estándar
+reporter: process.env.CI
+      ? [
+          ['html'],    // Genera el reporte pesado descargable
+          ['github']   // <-- ¡ESTE ES EL NATIVO! Crea anotaciones y resúmenes automáticos en GitHub Actions
+        ]
+      : 'html',       // En local sigue abriendo el HTML estándar
 
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
