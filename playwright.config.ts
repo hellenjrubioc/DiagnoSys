@@ -5,34 +5,35 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  /* Run tests in files in parallel */
+  /* Ejecuta tests en paralelo para acelerar los tiempos */
   fullyParallel: true,
-  /* Fail the build on CI if you accidentally left test.only in the source code. */
+  /* Evita que subas por accidente un test.only al repositorio de CI */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
+  /* Reintentos en caso de inestabilidad en la máquina virtual de GitHub */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
+  /* Forzamos ejecución secuencial en CI para que Next.js no colapse el CPU de la VM */
   workers: process.env.CI ? 1 : undefined,
   
-  /* Configuración multi-reporte limpia para CI y Local */
+  /* Configuración multi-reporte limpia para CI y Entorno Local */
   reporter: process.env.CI
     ? [
-        ['list'], // Esto imprime el texto descriptivo línea por línea en la consola de GitHub
-        ['html', { outputFolder: 'playwright-report', open: 'never' }], // Forzamos la creación física de la carpeta
-        ['github'] // Crea anotaciones visuales en los commits y archivos de GitHub
+        ['list'], 
+        ['html', { outputFolder: 'playwright-report', open: 'never' }], 
+        ['github'] 
       ]
-    : 'html', // En tu computadora mantiene el comportamiento estándar
+    : 'html', 
 
-  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
+  /* Configuración de contexto global */
   use: {
-    /* Base URL to use in actions like `await page.goto('')`. */
+    /* URL Base a la que apuntarán los métodos page.goto() */
     baseURL: 'http://localhost:3000',
 
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
+    /* Guarda trazas y capturas solo si el test llega a fallar en el primer intento */
     trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
   },
 
-  /* Configure projects for major browsers */
+  /* Matriz de navegadores en los que se correrán las pruebas */
   projects: [
     {
       name: 'chromium',
@@ -48,11 +49,11 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
+  /* Levanta automáticamente el servidor de desarrollo antes de arrancar los tests */
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
+    timeout: 120 * 1000, // 2 minutos máximo para compilar Next.js en GitHub Actions
   },
 });

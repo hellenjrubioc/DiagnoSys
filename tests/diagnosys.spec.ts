@@ -15,8 +15,7 @@ test.describe('DYAG-6: Autenticación', () => {
     await page.fill('input[type="password"]', '0rganizacion.');
     await page.click('button[type="submit"]');
     
-    // Then: Debo acceder a mi espacio personal
-    await page.waitForNavigation();
+    // Then: Debo acceder a mi espacio personal (Esperas automáticas por URL)
     await expect(page).toHaveURL(/\/dashboard/);
   });
 
@@ -34,13 +33,13 @@ test.describe('DYAG-6: Autenticación', () => {
     await expect(errorMessage).toBeVisible({ timeout: 5000 });
   });
 
-  test('Escenario 3 - Persistencia de sesión', async ({ page, context }) => {
+  test('Escenario 3 - Persistencia de sesión', async ({ page }) => {
     // Given: Inicio sesión correctamente
     await page.goto('/auth/card');
     await page.fill('input[type="email"]', 'correo.admin.diagnosys@gmail.com');
     await page.fill('input[type="password"]', '0rganizacion.');
     await page.click('button[type="submit"]');
-    await page.waitForNavigation();
+    await expect(page).toHaveURL(/\/dashboard/);
     
     // When: Recargo la página
     await page.reload();
@@ -56,24 +55,21 @@ test.describe('DYAG-6: Autenticación', () => {
     await page.fill('input[type="email"]', 'correo.admin.diagnosys@gmail.com');
     await page.fill('input[type="password"]', '0rganizacion.');
     await page.click('button[type="submit"]');
-    await page.waitForNavigation();
+    await expect(page).toHaveURL(/\/dashboard/);
     
-    // When: Hago clic en "Cerrar sesión"
-    // Buscar el botón de logout (puede estar en un menú o sidebar)
-    const logoutButton = page.locator('button:has-text("Cerrar sesión"), button:has-text("Logout"), button:has-text("Sign out")').first();
-    if (await logoutButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await logoutButton.click();
-    } else {
-      // Buscar en menú desplegable
-      const menuButton = page.locator('button:has-text("Menú"), button[aria-label*="menu"], [role="button"]:has-text("Perfil")').first();
-      if (await menuButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await menuButton.click();
-        await page.locator('text=/Cerrar sesión|Logout|Sign out/i').click();
-      }
+    // When: Hago clic en "Cerrar sesión" 
+    // Usamos selectores combinados para evitar lógica condicional lenta
+    const logoutButton = page.locator('button:has-text("Cerrar sesión"), button:has-text("Logout"), button:has-text("Sign out"), text=/Cerrar sesión|Logout|Sign out/i');
+    
+    // Si necesitas desplegar un menú de perfil primero de forma mandatoria:
+    const menuButton = page.locator('button:has-text("Menú"), button[aria-label*="menu"], [role="button"]:has-text("Perfil")').first();
+    if (await menuButton.isVisible({ timeout: 1000 }).catch(() => false)) {
+      await menuButton.click();
     }
     
+    await logoutButton.first().click();
+    
     // Then: Debo ser redirigido a la página de inicio
-    await page.waitForNavigation();
     await expect(page).toHaveURL(/\/(auth\/card|login|)/);
   });
 
@@ -82,7 +78,6 @@ test.describe('DYAG-6: Autenticación', () => {
     await page.goto('/auth/card');
     
     // When: Accedo al formulario de registro
-    // Buscar botón para ir a registro
     const registerButton = page.locator('text=/Crear cuenta|Registrarse|Registro|Sign up/i').first();
     await registerButton.click();
     
@@ -90,7 +85,8 @@ test.describe('DYAG-6: Autenticación', () => {
     await expect(page.locator('input[placeholder*="nombre"], input[placeholder*="Nombre"]')).toBeVisible();
     await expect(page.locator('input[type="email"]')).toBeVisible();
     await expect(page.locator('input[type="password"]')).toBeVisible();
-    // Verificar que hay campo de rol (puede ser select o radio)
+    
+    // Validación tolerante para el campo de rol
     await expect(page.locator('select, [role="combobox"], input[name*="rol"]')).toBeVisible({ timeout: 3000 }).catch(() => {});
   });
 
@@ -108,9 +104,9 @@ test.describe('DYAG-6: Autenticación', () => {
     await page.fill('input[type="email"]', newEmail);
     await page.fill('input[type="password"]', 'NewPassword123!');
     
-    // Confirmar contraseña si existe
+    // Llenar confirmación si el elemento está presente en la UI de forma determinista
     const confirmPassword = page.locator('input[placeholder*="confirmar"], input[name*="confirm"]').first();
-    if (await confirmPassword.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await confirmPassword.isVisible({ timeout: 1000 }).catch(() => false)) {
       await confirmPassword.fill('NewPassword123!');
     }
     
@@ -118,7 +114,6 @@ test.describe('DYAG-6: Autenticación', () => {
     await submitButton.click();
     
     // Then: Debo ser redirigido al login
-    await page.waitForNavigation();
     await expect(page).toHaveURL(/\/(auth\/card|login)/);
   });
 
@@ -130,11 +125,11 @@ test.describe('DYAG-6: Autenticación', () => {
     
     // When: Intento registrar con un correo que ya existe
     await page.fill('input[placeholder*="nombre"], input[placeholder*="Nombre"]', 'Test User');
-    await page.fill('input[type="email"]', 'test@example.com'); // Email que ya existe
+    await page.fill('input[type="email"]', 'test@example.com');
     await page.fill('input[type="password"]', 'TestPassword123!');
     
     const confirmPassword = page.locator('input[placeholder*="confirmar"], input[name*="confirm"]').first();
-    if (await confirmPassword.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await confirmPassword.isVisible({ timeout: 1000 }).catch(() => false)) {
       await confirmPassword.fill('TestPassword123!');
     }
     
@@ -163,9 +158,6 @@ test.describe('DYAG-6: Autenticación', () => {
   });
 
   test('Escenario 2 - Restablecimiento exitoso de contraseña', async ({ page }) => {
-    // Nota: Este test requiere un token válido del formulario de recuperación
-    // Por simplicidad, asumimos que la URL contiene un token válido
-    
     // Given: Recibí el enlace de restablecimiento
     await page.goto('/auth/reset-password?token=valid_token_example');
     
@@ -173,9 +165,8 @@ test.describe('DYAG-6: Autenticación', () => {
     const newPassword = 'NewPassword123!';
     await page.fill('input[placeholder*="contraseña"], input[type="password"]', newPassword);
     
-    // Confirmar contraseña si existe
     const confirmPassword = page.locator('input[placeholder*="confirmar"], input[name*="confirm"]').first();
-    if (await confirmPassword.isVisible({ timeout: 2000 }).catch(() => false)) {
+    if (await confirmPassword.isVisible({ timeout: 1000 }).catch(() => false)) {
       await confirmPassword.fill(newPassword);
     }
     
@@ -183,8 +174,6 @@ test.describe('DYAG-6: Autenticación', () => {
     await submitButton.click();
     
     // Then: Debo ser redirigido a login con confirmación
-    await page.waitForNavigation();
     await expect(page).toHaveURL(/\/(auth\/card|login)/);
   });
 });
-
