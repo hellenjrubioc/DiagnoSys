@@ -33,27 +33,34 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
 
-  /* Matriz de navegadores en los que se correrán las pruebas */
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-  ],
+  /* Matriz de navegadores optimizada para mitigar sobrecarga en CI */
+  projects: process.env.CI 
+    ? [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        }
+      ]
+    : [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+        {
+          name: 'firefox',
+          use: { ...devices['Desktop Firefox'] },
+        },
+        {
+          name: 'webkit',
+          use: { ...devices['Desktop Safari'] },
+        },
+      ],
 
-  /* Levanta automáticamente el servidor de desarrollo antes de arrancar los tests */
+  /* CORREGIDO: Ejecuta el servidor de producción ('start') en CI y el de desarrollo ('dev') localmente */
   webServer: {
-    command: 'npm run dev',
+    command: process.env.CI ? 'npm run start' : 'npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000, // 2 minutos máximo para compilar Next.js en GitHub Actions
+    timeout: 120 * 1000, 
   },
 });

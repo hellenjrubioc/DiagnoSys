@@ -58,10 +58,9 @@ test.describe('DYAG-6: Autenticación', () => {
     await expect(page).toHaveURL(/\/dashboard/);
     
     // When: Hago clic en "Cerrar sesión" 
-    // Usamos selectores combinados para evitar lógica condicional lenta
     const logoutButton = page.locator('button:has-text("Cerrar sesión"), button:has-text("Logout"), button:has-text("Sign out"), text=/Cerrar sesión|Logout|Sign out/i');
     
-    // Si necesitas desplegar un menú de perfil primero de forma mandatoria:
+    // Desplegar menú de perfil de forma fluida si es visible
     const menuButton = page.locator('button:has-text("Menú"), button[aria-label*="menu"], [role="button"]:has-text("Perfil")').first();
     if (await menuButton.isVisible({ timeout: 1000 }).catch(() => false)) {
       await menuButton.click();
@@ -104,7 +103,6 @@ test.describe('DYAG-6: Autenticación', () => {
     await page.fill('input[type="email"]', newEmail);
     await page.fill('input[type="password"]', 'NewPassword123!');
     
-    // Llenar confirmación si el elemento está presente en la UI de forma determinista
     const confirmPassword = page.locator('input[placeholder*="confirmar"], input[name*="confirm"]').first();
     if (await confirmPassword.isVisible({ timeout: 1000 }).catch(() => false)) {
       await confirmPassword.fill('NewPassword123!');

@@ -1,14 +1,13 @@
 name: Playwright Tests
 on:
   push:
-    branches: [ main]
+    branches: [ main ]
   pull_request:
-    branches: [ main]
+    branches: [ main ]
 jobs:
   test:
-    timeout-minutes: 60
+    timeout-minutes: 30
     runs-on: ubuntu-latest
-    # Necesitamos darle permisos al token de GitHub para que pueda escribir/crear la rama de la página web
     permissions:
       contents: write
   
@@ -24,8 +23,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # NUEVO: Obtener la versión exacta de Playwright instalada para la llave del caché
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
+
+      # NUEVO: Buscar navegadores en la caché de GitHub para no descargarlos de cero
+      - name: Cache Playwright Browsers
+        id: cache-playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # Instala navegadores y sus dependencias del sistema operativo SÓLO si no hubo impacto en caché
       - name: Install Playwright Browsers
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps
+
+      # Si la caché funcionó, aun necesitamos asegurar las dependencias del sistema (librerías de linux de los navegadores)
+      - name: Install Playwright System Dependencies
+        if: steps.cache-playwright.outputs.cache-hit == 'true'
+        run: npx playwright install-deps
 
       - name: Create temporary .env for build
         run: |
@@ -35,6 +56,7 @@ jobs:
           echo "NEXTAUTH_SECRET=\"${{ secrets.NEXTAUTH_SECRET }}\"" >> .env
           echo "NEXT_PUBLIC_APP_URL=\"${{ secrets.NEXT_PUBLIC_APP_URL }}\"" >> .env
 
+      # Compilamos la aplicación de forma estática antes de testear
       - name: Build Application (Prisma + Next.js)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -55,10 +77,9 @@ jobs:
           NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
         run: npm run test:e2e
 
-      # NUEVO PASO: Publica automáticamente el reporte HTML en GitHub Pages
       - name: Deploy Report to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
-        if: always() # Queremos que publique el reporte tanto si pasan los tests como si fallan
+        if: always() 
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./playwright-report
