@@ -6,7 +6,7 @@ on:
     branches: [ main ]
 jobs:
   test:
-    timeout-minutes: 30
+    timeout-minutes: 15 # Reducido de 60 a 15 porque ya sabemos que corre rápido
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -23,12 +23,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # NUEVO: Obtener la versión exacta de Playwright instalada para la llave del caché
       - name: Get Playwright version
         id: playwright-version
         run: echo "version=$(npm ls @playwright/test --json | jq -r '.dependencies["@playwright/test"].version')" >> $GITHUB_OUTPUT
 
-      # NUEVO: Buscar navegadores en la caché de GitHub para no descargarlos de cero
       - name: Cache Playwright Browsers
         id: cache-playwright
         uses: actions/cache@v4
@@ -38,12 +36,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-playwright-
 
-      # Instala navegadores y sus dependencias del sistema operativo SÓLO si no hubo impacto en caché
       - name: Install Playwright Browsers
         if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps
 
-      # Si la caché funcionó, aun necesitamos asegurar las dependencias del sistema (librerías de linux de los navegadores)
       - name: Install Playwright System Dependencies
         if: steps.cache-playwright.outputs.cache-hit == 'true'
         run: npx playwright install-deps
@@ -54,19 +50,27 @@ jobs:
           echo "DATABASE_URL_DIRECT=\"${{ secrets.DATABASE_URL_DIRECT }}\"" >> .env
           echo "RESEND_API_KEY=\"${{ secrets.RESEND_API_KEY }}\"" >> .env
           echo "NEXTAUTH_SECRET=\"${{ secrets.NEXTAUTH_SECRET }}\"" >> .env
-          echo "NEXT_PUBLIC_APP_URL=\"${{ secrets.NEXT_PUBLIC_APP_URL }}\"" >> .env
+          echo "NEXT_PUBLIC_APP_URL=\"http://localhost:3000\"" >> .env
+          echo "NEXTAUTH_URL=\"http://localhost:3000\"" >> .env
 
-      # Compilamos la aplicación de forma estática antes de testear
-      - name: Build Application (Prisma + Next.js)
+      # Sincroniza el esquema e inyecta las credenciales por defecto antes de compilar Next.js
+      - name: Prepare Database Schema and Seed Data
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npx prisma generate
+          npx prisma db push --accept-data-loss
+          npx prisma db seed
+
+      - name: Build Application (Next.js)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-        run: |
-          npx prisma generate
-          npm run build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXTAUTH_URL: http://localhost:3000
+        run: npm run build
 
       - name: Run Playwright tests
         env:
@@ -74,7 +78,8 @@ jobs:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXTAUTH_URL: http://localhost:3000
         run: npm run test:e2e
 
       - name: Deploy Report to GitHub Pages

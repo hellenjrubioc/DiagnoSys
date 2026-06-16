@@ -1,20 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
-/**
- * See https://playwright.dev/docs/test-configuration.
- */
 export default defineConfig({
   testDir: './tests',
-  /* Ejecuta tests en paralelo para acelerar los tiempos */
   fullyParallel: true,
-  /* Evita que subas por accidente un test.only al repositorio de CI */
   forbidOnly: !!process.env.CI,
-  /* Reintentos en caso de inestabilidad en la máquina virtual de GitHub */
   retries: process.env.CI ? 2 : 0,
-  /* Forzamos ejecución secuencial en CI para que Next.js no colapse el CPU de la VM */
   workers: process.env.CI ? 1 : undefined,
   
-  /* Configuración multi-reporte limpia para CI y Entorno Local */
   reporter: process.env.CI
     ? [
         ['list'], 
@@ -23,17 +15,13 @@ export default defineConfig({
       ]
     : 'html', 
 
-  /* Configuración de contexto global */
   use: {
-    /* URL Base a la que apuntarán los métodos page.goto() */
     baseURL: 'http://localhost:3000',
-
-    /* Guarda trazas y capturas solo si el test llega a fallar en el primer intento */
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
 
-  /* Matriz de navegadores optimizada para mitigar sobrecarga en CI */
+  /* En CI forzamos usar solo Chromium para acelerar el pipeline de autenticación */
   projects: process.env.CI 
     ? [
         {
@@ -56,7 +44,7 @@ export default defineConfig({
         },
       ],
 
-  /* CORREGIDO: Ejecuta el servidor de producción ('start') en CI y el de desarrollo ('dev') localmente */
+  /* El webServer corre la aplicación ya compilada y optimizada en el puerto 3000 */
   webServer: {
     command: process.env.CI ? 'npm run start' : 'npm run dev',
     url: 'http://localhost:3000',
